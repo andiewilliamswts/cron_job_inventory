@@ -13,7 +13,8 @@ def get_ctt_count(url, scraper_api_key):
     except Exception as e:
         print(f"CTT Request failed. Switching to ScraperAPI...")
         try:
-            fallback_url = f"http://api.scraperapi.com?api_key={scraper_api_key}&url={url}&render=true"
+            # Added &premium=true to bypass advanced firewalls
+            fallback_url = f"http://api.scraperapi.com?api_key={scraper_api_key}&url={url}&render=true&premium=true"
             fallback_response = requests.get(fallback_url, timeout=60)
             fallback_response.raise_for_status()
             html_content = fallback_response.text
@@ -38,7 +39,8 @@ def get_comvoy_count(url, scraper_api_key):
     except Exception as e:
         print(f"Blocked by Comvoy. Switching to ScraperAPI...")
         try:
-            fallback_url = f"http://api.scraperapi.com?api_key={scraper_api_key}&url={url}&render=true"
+            # Added &premium=true to bypass advanced firewalls
+            fallback_url = f"http://api.scraperapi.com?api_key={scraper_api_key}&url={url}&render=true&premium=true"
             fallback_response = requests.get(fallback_url, timeout=60)
             fallback_response.raise_for_status()
             html_content = fallback_response.text
