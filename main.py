@@ -5,8 +5,20 @@ import datetime
 import re
 import time
 
-def fetch_with_retries(url, scraper_api_key, retries=4):
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"}
+def fetch_with_retries(url, scraper_api_key, retries=3):
+    # Upgraded headers to perfectly mimic a real Chrome browser. 
+    # This often bypasses firewalls on the very first direct request!
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-User": "?1",
+        "Sec-Fetch-Dest": "document",
+        "Upgrade-Insecure-Requests": "1"
+    }
+    
     try:
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
@@ -19,8 +31,8 @@ def fetch_with_retries(url, scraper_api_key, retries=4):
                     'api_key': scraper_api_key,
                     'url': url,
                     'premium': 'true',
-                    'country_code': 'us',
-                    'antibot': 'true' # Activates specialized bypass for strict firewalls
+                    'country_code': 'us'
+                    # Removed antibot=true because it causes ScraperAPI to crash with a 500 error
                 }
                 
                 fallback_response = requests.get('http://api.scraperapi.com/', params=payload, timeout=60)
@@ -29,8 +41,8 @@ def fetch_with_retries(url, scraper_api_key, retries=4):
             except Exception as fallback_e:
                 print(f"ScraperAPI attempt {attempt + 1} failed: {fallback_e}")
                 if attempt < retries - 1:
-                    print("Waiting 10 seconds and retrying...")
-                    time.sleep(10)
+                    print("Waiting 5 seconds and retrying...")
+                    time.sleep(5)
                 else:
                     return None
 
@@ -44,11 +56,9 @@ def get_count_from_html(html_content):
     h1_tags = soup.find_all('h1')
     for tag in h1_tags:
         text = tag.text.strip()
-        # Updated Regex: Allows numbers both with AND without commas (e.g. 331,843 or 535)
         match = re.search(r'\b\d+(?:,\d{3})*\b', text)
         if match:
             num_str = match.group(0)
-            # Prevent accidentally grabbing copyright years
             if num_str.startswith("202") and len(num_str) == 4 and "found" not in text.lower():
                 continue
             return num_str
@@ -76,41 +86,5 @@ def main():
     url_ctt_vehicles = "https://www.commercialtrucktrader.com/trucks-for-sale" 
     url_ctt_trailers = "https://www.commercialtrucktrader.com/trucks-for-sale?class=TRAILER%7C9"
     
-    url_comvoy_vehicles = "https://www.comvoy.com/vehicles"
-    url_comvoy_trailers = "https://www.comvoy.com/trailers" 
-    
-    print("Fetching Commercial Truck Trader Vehicles...")
-    ctt_vehicles = get_count_from_html(fetch_with_retries(url_ctt_vehicles, scraper_api_key))
-    
-    print("Fetching Commercial Truck Trader Trailers...")
-    ctt_trailers = get_count_from_html(fetch_with_retries(url_ctt_trailers, scraper_api_key))
-    
-    print("Fetching Comvoy Vehicles...")
-    comvoy_vehicles = get_count_from_html(fetch_with_retries(url_comvoy_vehicles, scraper_api_key))
-    
-    print("Fetching Comvoy Trailers...")
-    comvoy_trailers = get_count_from_html(fetch_with_retries(url_comvoy_trailers, scraper_api_key))
-    
-    today = str(datetime.date.today())
-    
-    payload = {
-        "date": today,
-        "ctt_vehicles": ctt_vehicles,
-        "ctt_trailers": ctt_trailers,
-        "comvoy_vehicles": comvoy_vehicles,
-        "comvoy_trailers": comvoy_trailers
-    }
-    
-    try:
-        response = requests.post(webhook_url, data=payload)
-        if response.text == "Success":
-            print(f"Success! Appended data for {today}:")
-            print(f"CTT Vehicles: {ctt_vehicles} | CTT Trailers: {ctt_trailers}")
-            print(f"Comvoy Vehicles: {comvoy_vehicles} | Comvoy Trailers: {comvoy_trailers}")
-        else:
-            print(f"Failed to append. Response: {response.text}")
-    except Exception as e:
-        print(f"Webhook request failed: {e}")
-
-if __name__ == "__main__":
-    main()
+    # Adding ?page=1 alters the URL signature just enough to bypass Comvoy's strict path-based firewall block
+    url_com
