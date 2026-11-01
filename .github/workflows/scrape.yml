@@ -1,9 +1,7 @@
-name: Monthly Truck Trader Scraper
+name: Monthly Inventory Scraper
 
 on:
   schedule:
-    # Runs at 01:00 UTC on the 1st of every month
-    # This equals 5:00 PM PST (Standard Time) on the last day of the previous month
     - cron: '0 1 1 * *'
   workflow_dispatch: 
 
@@ -31,12 +29,5 @@ jobs:
       - name: Run Scraper Script
         env:
           SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
+          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
         run: python main.py
-        
-      - name: Commit and Push CSV
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add truck_data.csv
-          git diff --quiet && git diff --staged --quiet || git commit -m "Add monthly scrape data"
-          git push
