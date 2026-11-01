@@ -1,11 +1,12 @@
-name: Monthly Inventory Scraper
+name: Monthly Truck Trader Scraper
 
 on:
   schedule:
-    - cron: '0 0 1 * *'
+    # Runs at 01:00 UTC on the 1st of every month
+    # This equals 5:00 PM PST (Standard Time) on the last day of the previous month
+    - cron: '0 1 1 * *'
   workflow_dispatch: 
 
-# This permission allows the action to save files back to your repository
 permissions:
   contents: write
 
@@ -37,6 +38,5 @@ jobs:
           git config --local user.email "action@github.com"
           git config --local user.name "GitHub Action"
           git add truck_data.csv
-          # Only commit if there are changes to avoid errors
           git diff --quiet && git diff --staged --quiet || git commit -m "Add monthly scrape data"
           git push
