@@ -13,9 +13,14 @@ def get_ctt_count(url, scraper_api_key):
     except Exception as e:
         print(f"CTT Request failed. Switching to ScraperAPI...")
         try:
-            # Added &premium=true to bypass advanced firewalls
-            fallback_url = f"http://api.scraperapi.com?api_key={scraper_api_key}&url={url}&render=true&premium=true"
-            fallback_response = requests.get(fallback_url, timeout=60)
+            # Using the params dictionary properly URL-encodes the special characters
+            payload = {
+                'api_key': scraper_api_key,
+                'url': url,
+                'render': 'true',
+                'premium': 'true'
+            }
+            fallback_response = requests.get('http://api.scraperapi.com/', params=payload, timeout=60)
             fallback_response.raise_for_status()
             html_content = fallback_response.text
         except Exception as fallback_e:
@@ -39,9 +44,13 @@ def get_comvoy_count(url, scraper_api_key):
     except Exception as e:
         print(f"Blocked by Comvoy. Switching to ScraperAPI...")
         try:
-            # Added &premium=true to bypass advanced firewalls
-            fallback_url = f"http://api.scraperapi.com?api_key={scraper_api_key}&url={url}&render=true&premium=true"
-            fallback_response = requests.get(fallback_url, timeout=60)
+            payload = {
+                'api_key': scraper_api_key,
+                'url': url,
+                'render': 'true',
+                'premium': 'true'
+            }
+            fallback_response = requests.get('http://api.scraperapi.com/', params=payload, timeout=60)
             fallback_response.raise_for_status()
             html_content = fallback_response.text
         except Exception as fallback_e:
@@ -50,7 +59,8 @@ def get_comvoy_count(url, scraper_api_key):
             
     soup = BeautifulSoup(html_content, 'html.parser')
     
-    headings = soup.find_all(['h1', 'h2', 'span'])
+    # Removed 'span' to prevent the scraper from grabbing copyright years like "2024"
+    headings = soup.find_all(['h1', 'h2'])
     for heading in headings:
         text = heading.text.strip()
         if ("Truck" in text or "Vehicle" in text or "Trailer" in text or "Found" in text) and any(char.isdigit() for char in text):
