@@ -7,14 +7,12 @@ import re
 def get_ctt_count(url, scraper_api_key):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"}
     try:
-        # Added timeout so it doesn't hang forever
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
         html_content = response.text
     except Exception as e:
         print(f"CTT Request failed. Switching to ScraperAPI...")
         try:
-            # &render=true helps bypass advanced bot protection
             fallback_url = f"http://api.scraperapi.com?api_key={scraper_api_key}&url={url}&render=true"
             fallback_response = requests.get(fallback_url, timeout=60)
             fallback_response.raise_for_status()
@@ -40,7 +38,6 @@ def get_comvoy_count(url, scraper_api_key):
     except Exception as e:
         print(f"Blocked by Comvoy. Switching to ScraperAPI...")
         try:
-            # &render=true is critical here for Comvoy
             fallback_url = f"http://api.scraperapi.com?api_key={scraper_api_key}&url={url}&render=true"
             fallback_response = requests.get(fallback_url, timeout=60)
             fallback_response.raise_for_status()
@@ -65,11 +62,11 @@ def main():
     scraper_api_key = os.environ.get("SCRAPER_API_KEY")
     webhook_url = os.environ.get("WEBHOOK_URL")
     
-    url_ctt_vehicles = "https://github.com/andiewilliamswts/cron_job_inventory/actions/runs/41289152258/job/124796590376#step:5:22" 
+    url_ctt_vehicles = "https://www.commercialtrucktrader.com/trucks-for-sale" 
     url_ctt_trailers = "https://www.commercialtrucktrader.com/trucks-for-sale?class=TRAILER%7C9"
     
     url_comvoy_vehicles = "https://www.comvoy.com/vehicles"
-    url_comvoy_trailers = "https://github.com/andiewilliamswts/cron_job_inventory2?body_type=Trailer" 
+    url_comvoy_trailers = "https://www.comvoy.com/vehicles?body_type=Trailer" 
     
     print("Fetching Commercial Truck Trader data...")
     ctt_vehicles = get_ctt_count(url_ctt_vehicles, scraper_api_key)
