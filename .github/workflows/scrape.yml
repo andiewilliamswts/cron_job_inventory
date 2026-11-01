@@ -1,0 +1,42 @@
+name: Monthly Inventory Scraper
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'
+  workflow_dispatch: 
+
+# This permission allows the action to save files back to your repository
+permissions:
+  contents: write
+
+jobs:
+  scrape-and-update:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Run Scraper Script
+        env:
+          SCRAPER_API_KEY: ${{ secrets.SCRAPER_API_KEY }}
+        run: python main.py
+        
+      - name: Commit and Push CSV
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add truck_data.csv
+          # Only commit if there are changes to avoid errors
+          git diff --quiet && git diff --staged --quiet || git commit -m "Add monthly scrape data"
+          git push
