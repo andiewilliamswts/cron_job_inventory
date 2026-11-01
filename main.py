@@ -5,7 +5,7 @@ import datetime
 import re
 import time
 
-def fetch_with_retries(url, scraper_api_key, retries=2):
+def fetch_with_retries(url, scraper_api_key, retries=4):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"}
     try:
         response = requests.get(url, headers=headers, timeout=15)
@@ -18,7 +18,7 @@ def fetch_with_retries(url, scraper_api_key, retries=2):
                 payload = {
                     'api_key': scraper_api_key,
                     'url': url,
-                    'render': 'true',
+                    # render=true is removed to prevent ScraperAPI 500 timeouts
                     'premium': 'true'
                 }
                 fallback_response = requests.get('http://api.scraperapi.com/', params=payload, timeout=60)
@@ -27,8 +27,8 @@ def fetch_with_retries(url, scraper_api_key, retries=2):
             except Exception as fallback_e:
                 print(f"ScraperAPI attempt {attempt + 1} failed: {fallback_e}")
                 if attempt < retries - 1:
-                    print("Waiting 5 seconds and retrying...")
-                    time.sleep(5)
+                    print("Waiting 10 seconds and retrying...")
+                    time.sleep(10)
                 else:
                     return None
 
@@ -38,22 +38,17 @@ def get_count_from_html(html_content):
         
     soup = BeautifulSoup(html_content, 'html.parser')
     
-    # 1. Search all major text elements
     elements = soup.find_all(['h1', 'h2', 'h3', 'h4', 'span', 'strong', 'div'])
     
     for element in elements:
         text = element.text.strip()
-        
-        # 2. Look specifically for numbers formatted with commas (e.g., 15,200) to avoid years like 2024
         match = re.search(r'\b\d{1,3}(?:,\d{3})+\b', text)
         
         if match:
-            # 3. Ensure the text surrounding the number is relevant to our search
             lower_text = text.lower()
             if any(keyword in lower_text for keyword in ["truck", "trailer", "vehicle", "found", "result", "for sale", "listing"]):
                 return match.group(0)
                 
-    # 4. Deep fallback: search the entire raw text of the page for numbers next to our keywords
     raw_matches = re.findall(r'(\b\d{1,3}(?:,\d{3})+\b)\s*(?:trucks|trailers|vehicles|results|for sale)', soup.text, re.IGNORECASE)
     if raw_matches:
         return raw_matches[0]
