@@ -5,7 +5,7 @@ import datetime
 import re
 import time
 
-def fetch_with_retries(url, scraper_api_key, retries=4, use_render=False):
+def fetch_with_retries(url, scraper_api_key, retries=4):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"}
     try:
         response = requests.get(url, headers=headers, timeout=15)
@@ -20,14 +20,10 @@ def fetch_with_retries(url, scraper_api_key, retries=4, use_render=False):
                     'url': url,
                     'premium': 'true',
                     'country_code': 'us'
+                    # render=true has been completely removed to prevent ScraperAPI 500 timeouts
                 }
                 
-                # Only activate the virtual browser if the specific site requires it
-                if use_render:
-                    payload['render'] = 'true'
-                    
-                # Increased timeout to 90s to give the virtual browser time to apply JS filters
-                fallback_response = requests.get('http://api.scraperapi.com/', params=payload, timeout=90)
+                fallback_response = requests.get('http://api.scraperapi.com/', params=payload, timeout=60)
                 fallback_response.raise_for_status()
                 return fallback_response.text
             except Exception as fallback_e:
@@ -71,22 +67,22 @@ def main():
     url_ctt_vehicles = "https://www.commercialtrucktrader.com/trucks-for-sale" 
     url_ctt_trailers = "https://www.commercialtrucktrader.com/trucks-for-sale?class=TRAILER%7C9"
     
+    # Comvoy total vehicles (Server returns total count by default without JS)
     url_comvoy_vehicles = "https://www.comvoy.com/vehicles"
-    url_comvoy_trailers = "https://www.comvoy.com/vehicles?listing_type=trailer" 
+    # Comvoy dedicated Trailers URL (Server pre-renders the trailer count without JS)
+    url_comvoy_trailers = "https://www.comvoy.com/trailers" 
     
-    # CTT does not need JavaScript rendering
     print("Fetching Commercial Truck Trader Vehicles...")
-    ctt_vehicles = get_count_from_html(fetch_with_retries(url_ctt_vehicles, scraper_api_key, use_render=False))
+    ctt_vehicles = get_count_from_html(fetch_with_retries(url_ctt_vehicles, scraper_api_key))
     
     print("Fetching Commercial Truck Trader Trailers...")
-    ctt_trailers = get_count_from_html(fetch_with_retries(url_ctt_trailers, scraper_api_key, use_render=False))
+    ctt_trailers = get_count_from_html(fetch_with_retries(url_ctt_trailers, scraper_api_key))
     
-    # Comvoy requires JavaScript rendering to apply the trailer filters properly
     print("Fetching Comvoy Vehicles...")
-    comvoy_vehicles = get_count_from_html(fetch_with_retries(url_comvoy_vehicles, scraper_api_key, use_render=True))
+    comvoy_vehicles = get_count_from_html(fetch_with_retries(url_comvoy_vehicles, scraper_api_key))
     
     print("Fetching Comvoy Trailers...")
-    comvoy_trailers = get_count_from_html(fetch_with_retries(url_comvoy_trailers, scraper_api_key, use_render=True))
+    comvoy_trailers = get_count_from_html(fetch_with_retries(url_comvoy_trailers, scraper_api_key))
     
     today = str(datetime.date.today())
     
