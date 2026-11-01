@@ -18,8 +18,8 @@ def fetch_with_retries(url, scraper_api_key, retries=4):
                 payload = {
                     'api_key': scraper_api_key,
                     'url': url,
-                    # render=true is removed to prevent ScraperAPI 500 timeouts
-                    'premium': 'true'
+                    'premium': 'true',
+                    'country_code': 'us'  # Forces US residential proxies for a higher success rate
                 }
                 fallback_response = requests.get('http://api.scraperapi.com/', params=payload, timeout=60)
                 fallback_response.raise_for_status()
@@ -38,8 +38,15 @@ def get_count_from_html(html_content):
         
     soup = BeautifulSoup(html_content, 'html.parser')
     
-    elements = soup.find_all(['h1', 'h2', 'h3', 'h4', 'span', 'strong', 'div'])
-    
+    # 1. Prioritize H1 tags: The actual search result count is almost always in the H1 tag
+    h1_tags = soup.find_all('h1')
+    for tag in h1_tags:
+        match = re.search(r'\b\d{1,3}(?:,\d{3})+\b', tag.text)
+        if match:
+            return match.group(0)
+            
+    # 2. Fallback to other elements only if an H1 number isn't found
+    elements = soup.find_all(['h2', 'h3', 'h4', 'span', 'strong'])
     for element in elements:
         text = element.text.strip()
         match = re.search(r'\b\d{1,3}(?:,\d{3})+\b', text)
@@ -49,10 +56,6 @@ def get_count_from_html(html_content):
             if any(keyword in lower_text for keyword in ["truck", "trailer", "vehicle", "found", "result", "for sale", "listing"]):
                 return match.group(0)
                 
-    raw_matches = re.findall(r'(\b\d{1,3}(?:,\d{3})+\b)\s*(?:trucks|trailers|vehicles|results|for sale)', soup.text, re.IGNORECASE)
-    if raw_matches:
-        return raw_matches[0]
-        
     return "Count not found"
 
 def main():
@@ -63,7 +66,8 @@ def main():
     url_ctt_trailers = "https://www.commercialtrucktrader.com/trucks-for-sale?class=TRAILER%7C9"
     
     url_comvoy_vehicles = "https://www.comvoy.com/vehicles"
-    url_comvoy_trailers = "https://www.comvoy.com/vehicles?body_type=Trailer" 
+    # Updated to use listing_type=trailer filter
+    url_comvoy_trailers = "https://www.comvoy.com/vehicles?listing_type=trailer" 
     
     print("Fetching Commercial Truck Trader Vehicles...")
     ctt_vehicles = get_count_from_html(fetch_with_retries(url_ctt_vehicles, scraper_api_key))
