@@ -87,4 +87,41 @@ def main():
     url_ctt_trailers = "https://www.commercialtrucktrader.com/trucks-for-sale?class=TRAILER%7C9"
     
     # Adding ?page=1 alters the URL signature just enough to bypass Comvoy's strict path-based firewall block
-    url_com
+    url_comvoy_vehicles = "https://www.comvoy.com/vehicles?page=1"
+    url_comvoy_trailers = "https://www.comvoy.com/trailers" 
+    
+    print("Fetching Commercial Truck Trader Vehicles...")
+    ctt_vehicles = get_count_from_html(fetch_with_retries(url_ctt_vehicles, scraper_api_key))
+    
+    print("Fetching Commercial Truck Trader Trailers...")
+    ctt_trailers = get_count_from_html(fetch_with_retries(url_ctt_trailers, scraper_api_key))
+    
+    print("Fetching Comvoy Vehicles...")
+    comvoy_vehicles = get_count_from_html(fetch_with_retries(url_comvoy_vehicles, scraper_api_key))
+    
+    print("Fetching Comvoy Trailers...")
+    comvoy_trailers = get_count_from_html(fetch_with_retries(url_comvoy_trailers, scraper_api_key))
+    
+    today = str(datetime.date.today())
+    
+    payload = {
+        "date": today,
+        "ctt_vehicles": ctt_vehicles,
+        "ctt_trailers": ctt_trailers,
+        "comvoy_vehicles": comvoy_vehicles,
+        "comvoy_trailers": comvoy_trailers
+    }
+    
+    try:
+        response = requests.post(webhook_url, data=payload)
+        if response.text == "Success":
+            print(f"Success! Appended data for {today}:")
+            print(f"CTT Vehicles: {ctt_vehicles} | CTT Trailers: {ctt_trailers}")
+            print(f"Comvoy Vehicles: {comvoy_vehicles} | Comvoy Trailers: {comvoy_trailers}")
+        else:
+            print(f"Failed to append. Response: {response.text}")
+    except Exception as e:
+        print(f"Webhook request failed: {e}")
+
+if __name__ == "__main__":
+    main()
