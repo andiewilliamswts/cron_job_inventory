@@ -19,8 +19,8 @@ def fetch_with_retries(url, scraper_api_key, retries=4):
                     'api_key': scraper_api_key,
                     'url': url,
                     'premium': 'true',
-                    'country_code': 'us'
-                    # render=true has been completely removed to prevent ScraperAPI 500 timeouts
+                    'country_code': 'us',
+                    'antibot': 'true' # Activates specialized bypass for strict firewalls
                 }
                 
                 fallback_response = requests.get('http://api.scraperapi.com/', params=payload, timeout=60)
@@ -40,23 +40,32 @@ def get_count_from_html(html_content):
         
     soup = BeautifulSoup(html_content, 'html.parser')
     
-    # 1. Prioritize H1 tags: The actual search result count is almost always in the H1 tag
+    # 1. Prioritize H1 tags
     h1_tags = soup.find_all('h1')
     for tag in h1_tags:
-        match = re.search(r'\b\d{1,3}(?:,\d{3})+\b', tag.text)
+        text = tag.text.strip()
+        # Updated Regex: Allows numbers both with AND without commas (e.g. 331,843 or 535)
+        match = re.search(r'\b\d+(?:,\d{3})*\b', text)
         if match:
-            return match.group(0)
+            num_str = match.group(0)
+            # Prevent accidentally grabbing copyright years
+            if num_str.startswith("202") and len(num_str) == 4 and "found" not in text.lower():
+                continue
+            return num_str
             
-    # 2. Fallback to other elements only if an H1 number isn't found
+    # 2. Fallback to other elements
     elements = soup.find_all(['h2', 'h3', 'h4', 'span', 'strong'])
     for element in elements:
         text = element.text.strip()
-        match = re.search(r'\b\d{1,3}(?:,\d{3})+\b', text)
+        match = re.search(r'\b\d+(?:,\d{3})*\b', text)
         
         if match:
             lower_text = text.lower()
+            num_str = match.group(0)
+            if num_str.startswith("202") and len(num_str) == 4:
+                continue
             if any(keyword in lower_text for keyword in ["truck", "trailer", "vehicle", "found", "result", "for sale", "listing"]):
-                return match.group(0)
+                return num_str
                 
     return "Count not found"
 
@@ -67,9 +76,7 @@ def main():
     url_ctt_vehicles = "https://www.commercialtrucktrader.com/trucks-for-sale" 
     url_ctt_trailers = "https://www.commercialtrucktrader.com/trucks-for-sale?class=TRAILER%7C9"
     
-    # Comvoy total vehicles (Server returns total count by default without JS)
     url_comvoy_vehicles = "https://www.comvoy.com/vehicles"
-    # Comvoy dedicated Trailers URL (Server pre-renders the trailer count without JS)
     url_comvoy_trailers = "https://www.comvoy.com/trailers" 
     
     print("Fetching Commercial Truck Trader Vehicles...")
