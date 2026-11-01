@@ -3,72 +3,62 @@ import requests
 from bs4 import BeautifulSoup
 import datetime
 import re
+import time
 
-def get_ctt_count(url, scraper_api_key):
+def fetch_with_retries(url, scraper_api_key, retries=2):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"}
     try:
         response = requests.get(url, headers=headers, timeout=15)
         response.raise_for_status()
-        html_content = response.text
+        return response.text
     except Exception as e:
-        print(f"CTT Request failed. Switching to ScraperAPI...")
-        try:
-            # Using the params dictionary properly URL-encodes the special characters
-            payload = {
-                'api_key': scraper_api_key,
-                'url': url,
-                'render': 'true',
-                'premium': 'true'
-            }
-            fallback_response = requests.get('http://api.scraperapi.com/', params=payload, timeout=60)
-            fallback_response.raise_for_status()
-            html_content = fallback_response.text
-        except Exception as fallback_e:
-            print(f"ScraperAPI also failed for CTT: {fallback_e}")
-            return "API Error"
-            
-    soup = BeautifulSoup(html_content, 'html.parser')
-    results_header = soup.find(lambda tag: tag.name == "h3" and "For Sale" in tag.text)
-    
-    if results_header:
-        match = re.search(r'[\d,]+', results_header.text.strip())
-        return match.group(0) if match else "Count not found"
-    return "Header not found"
+        print(f"Direct request failed. Switching to ScraperAPI...")
+        for attempt in range(retries):
+            try:
+                payload = {
+                    'api_key': scraper_api_key,
+                    'url': url,
+                    'render': 'true',
+                    'premium': 'true'
+                }
+                fallback_response = requests.get('http://api.scraperapi.com/', params=payload, timeout=60)
+                fallback_response.raise_for_status()
+                return fallback_response.text
+            except Exception as fallback_e:
+                print(f"ScraperAPI attempt {attempt + 1} failed: {fallback_e}")
+                if attempt < retries - 1:
+                    print("Waiting 5 seconds and retrying...")
+                    time.sleep(5)
+                else:
+                    return None
 
-def get_comvoy_count(url, scraper_api_key):
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36"}
-    try:
-        response = requests.get(url, headers=headers, timeout=15)
-        response.raise_for_status()
-        html_content = response.text
-    except Exception as e:
-        print(f"Blocked by Comvoy. Switching to ScraperAPI...")
-        try:
-            payload = {
-                'api_key': scraper_api_key,
-                'url': url,
-                'render': 'true',
-                'premium': 'true'
-            }
-            fallback_response = requests.get('http://api.scraperapi.com/', params=payload, timeout=60)
-            fallback_response.raise_for_status()
-            html_content = fallback_response.text
-        except Exception as fallback_e:
-            print(f"ScraperAPI also failed for Comvoy: {fallback_e}")
-            return "API Error"
-            
+def get_count_from_html(html_content):
+    if not html_content:
+        return "API Error"
+        
     soup = BeautifulSoup(html_content, 'html.parser')
     
-    # Removed 'span' to prevent the scraper from grabbing copyright years like "2024"
-    headings = soup.find_all(['h1', 'h2'])
-    for heading in headings:
-        text = heading.text.strip()
-        if ("Truck" in text or "Vehicle" in text or "Trailer" in text or "Found" in text) and any(char.isdigit() for char in text):
-            match = re.search(r'[\d,]+', text)
-            if match:
+    # 1. Search all major text elements
+    elements = soup.find_all(['h1', 'h2', 'h3', 'h4', 'span', 'strong', 'div'])
+    
+    for element in elements:
+        text = element.text.strip()
+        
+        # 2. Look specifically for numbers formatted with commas (e.g., 15,200) to avoid years like 2024
+        match = re.search(r'\b\d{1,3}(?:,\d{3})+\b', text)
+        
+        if match:
+            # 3. Ensure the text surrounding the number is relevant to our search
+            lower_text = text.lower()
+            if any(keyword in lower_text for keyword in ["truck", "trailer", "vehicle", "found", "result", "for sale", "listing"]):
                 return match.group(0)
                 
-    return "Header not found"
+    # 4. Deep fallback: search the entire raw text of the page for numbers next to our keywords
+    raw_matches = re.findall(r'(\b\d{1,3}(?:,\d{3})+\b)\s*(?:trucks|trailers|vehicles|results|for sale)', soup.text, re.IGNORECASE)
+    if raw_matches:
+        return raw_matches[0]
+        
+    return "Count not found"
 
 def main():
     scraper_api_key = os.environ.get("SCRAPER_API_KEY")
@@ -80,13 +70,17 @@ def main():
     url_comvoy_vehicles = "https://www.comvoy.com/vehicles"
     url_comvoy_trailers = "https://www.comvoy.com/vehicles?body_type=Trailer" 
     
-    print("Fetching Commercial Truck Trader data...")
-    ctt_vehicles = get_ctt_count(url_ctt_vehicles, scraper_api_key)
-    ctt_trailers = get_ctt_count(url_ctt_trailers, scraper_api_key)
+    print("Fetching Commercial Truck Trader Vehicles...")
+    ctt_vehicles = get_count_from_html(fetch_with_retries(url_ctt_vehicles, scraper_api_key))
     
-    print("Fetching Comvoy data...")
-    comvoy_vehicles = get_comvoy_count(url_comvoy_vehicles, scraper_api_key)
-    comvoy_trailers = get_comvoy_count(url_comvoy_trailers, scraper_api_key)
+    print("Fetching Commercial Truck Trader Trailers...")
+    ctt_trailers = get_count_from_html(fetch_with_retries(url_ctt_trailers, scraper_api_key))
+    
+    print("Fetching Comvoy Vehicles...")
+    comvoy_vehicles = get_count_from_html(fetch_with_retries(url_comvoy_vehicles, scraper_api_key))
+    
+    print("Fetching Comvoy Trailers...")
+    comvoy_trailers = get_count_from_html(fetch_with_retries(url_comvoy_trailers, scraper_api_key))
     
     today = str(datetime.date.today())
     
